@@ -4,6 +4,10 @@ using Frends.SFTP.WriteFile.Enums;
 
 namespace Frends.SFTP.WriteFile.Tests;
 
+/// <summary>
+/// Base for integration tests. Requires the Dockerized SFTP server on localhost:2222.
+/// </summary>
+[Category("Integration")]
 public class WriteFileTestBase
 {
     internal static Input _input;

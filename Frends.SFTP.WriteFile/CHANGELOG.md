@@ -7,6 +7,12 @@
 
 ### Changed
 - [Breaking] Renamed `Result.Path` to `Result.RemotePath` for clarity. Update existing code to use `result.RemotePath` instead of `result.Path`.
+- [Breaking] `HostKeyAlgorithm` `DSS` is no longer supported, because SSH.NET dropped DSA. Selecting it now throws an `ArgumentException`.
+- A server fingerprint mismatch now throws `SshConnectionException` with the message "Host key could not be verified." instead of "Key exchange negotiation failed.".
+
+### Updated
+- Updated SSH.NET to version 2026.0.0 to fix security advisories GHSA-mggc-4xg6-vcxf and GHSA-q939-rpr3-3284.
+- Added an explicit Microsoft.Bcl.AsyncInterfaces dependency, which SSH.NET needs at runtime on net6.0.
 
 ## [2.5.0] - 2025-10-15
 ### Added

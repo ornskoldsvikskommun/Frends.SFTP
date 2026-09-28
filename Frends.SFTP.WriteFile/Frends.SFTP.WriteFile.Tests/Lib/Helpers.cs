@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Text;
 using System.Security.Cryptography;
 using Renci.SshNet;
@@ -123,6 +124,20 @@ internal static class Helpers
         client.Connect();
         DeleteDirectory(client, "/upload");
         client.Disconnect();
+    }
+
+    internal static string GetTestDataPath(string fileName)
+    {
+        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TestData", fileName);
+    }
+
+    /// <summary>
+    /// Reads the public key blob from an OpenSSH formatted .pub file ("type base64 comment").
+    /// </summary>
+    internal static byte[] ReadPublicKeyBlob(string fileName)
+    {
+        var parts = File.ReadAllText(GetTestDataPath(fileName)).Split(' ');
+        return Convert.FromBase64String(parts[1]);
     }
 
     internal static SshKeyGenerator.SshKeyGenerator GenerateDummySshKey()

@@ -18,6 +18,8 @@
 	  <Description>Writes string to a file through SFTP connection.</Description>
 	  <PackageProjectUrl>https://frends.com/</PackageProjectUrl>
 	  <RepositoryUrl>https://github.com/FrendsPlatform/Frends.SFTP/tree/main/Frends.SFTP.WriteFile</RepositoryUrl>
+	  <!-- SSH.NET 2025+ has no net6.0 target; its netstandard2.0 build pulls System.Formats.Asn1 10.x, which warns on net6.0. -->
+	  <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,6 +31,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Frends.SFTP.WriteFile.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SSH.NET's netstandard2.0 build references this assembly, but on net6.0 NuGet does not bring it in transitively. -->
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
 	<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
     <PackageReference Include="SSH.NET" Version="2026.0.0" />

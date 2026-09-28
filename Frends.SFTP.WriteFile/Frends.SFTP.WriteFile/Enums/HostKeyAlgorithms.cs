@@ -20,6 +20,7 @@ public enum HostKeyAlgorithms
     Ed25519,
     /// <summary>
     /// Force the ssh-dss host key algorithm.
+    /// Not supported: DSA was removed from SSH.NET, so selecting this throws an ArgumentException.
     /// </summary>
     DSS,
     /// <summary>
