@@ -6,7 +6,7 @@
 - A server fingerprint mismatch now throws `SshConnectionException` with the message "Host key could not be verified." instead of "Key exchange negotiation failed.".
 
 ### Updated
-- Updated SSH.NET to 2026.0.0 (clears Dependabot alerts GHSA-mggc-4xg6-vcxf / GHSA-q939-rpr3-3284; the vulnerable ScpClient code is not used by this task).
+- Updated SSH.NET to 2026.0.0, clearing Dependabot alerts for GHSA-mggc-4xg6-vcxf and GHSA-q939-rpr3-3284 (ScpClient-only; not reachable from this task).
 - Added an explicit Microsoft.Bcl.AsyncInterfaces dependency, which SSH.NET needs at runtime on net6.0.
 
 ## [3.5.5] - 2025-12-17
