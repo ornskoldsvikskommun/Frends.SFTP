@@ -7,7 +7,7 @@
 
 ### Changed
 - [Breaking] Renamed `Result.Path` to `Result.RemotePath` for clarity. Update existing code to use `result.RemotePath` instead of `result.Path`.
-- [Breaking] `HostKeyAlgorithm` `DSS` is no longer supported, because SSH.NET dropped DSA. Selecting it now throws an `ArgumentException`.
+- [Breaking] `HostKeyAlgorithm` `DSS` is no longer supported, because SSH.NET dropped DSA. Selecting it now throws a `NotSupportedException`.
 - A server fingerprint mismatch now throws `SshConnectionException` with the message "Host key could not be verified." instead of "Key exchange negotiation failed.".
 
 ### Updated

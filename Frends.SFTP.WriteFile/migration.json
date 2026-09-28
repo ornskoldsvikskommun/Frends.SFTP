@@ -1,7 +1,7 @@
 {
   "task": "Frends.SFTP.WriteFile",
   "fromVersion": "<= 2.5.0",
-  "toVersion": ">= 3.5.5",
+  "toVersion": ">= 3.6.0",
   "breakingChanges": [
     {
       "type": "rename",

@@ -105,6 +105,63 @@ public class ConnectionInfoBuilderUnitTests
         Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[1]);
     }
 
+    [TestCase("rsa_pem_key", null)]
+    [TestCase("rsa_pem_key", "")]
+    [TestCase("ed25519_key", null)]
+    [TestCase("ed25519_key", "")]
+    [TestCase("rsa_openssh_key", "passphrase")]
+    [TestCase("ecdsa_nistp256_key", "passphrase")]
+    public void BuildConnectionInfo_PrivateKeyFileOnly(string keyFile, string passphrase)
+    {
+        _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
+        _connection.Password = null;
+        _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
+        _connection.PrivateKeyPassphrase = passphrase;
+
+        var info = Build();
+
+        Assert.AreEqual(1, info.AuthenticationMethods.Count);
+        Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[0]);
+    }
+
+    [TestCase(null)]
+    [TestCase("")]
+    public void BuildConnectionInfo_GeneratedRsaKeyAsFileAndString(string passphrase)
+    {
+        var key = Helpers.GenerateDummySshKey().ToPrivateKey();
+        var keyFile = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            File.WriteAllText(keyFile, key);
+
+            _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
+            _connection.PrivateKeyFile = keyFile;
+            _connection.PrivateKeyPassphrase = passphrase;
+            Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(Build().AuthenticationMethods.Single());
+
+            _connection.Authentication = AuthenticationType.UsernamePrivateKeyString;
+            _connection.PrivateKeyString = key;
+            Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(Build().AuthenticationMethods.Single());
+        }
+        finally
+        {
+            File.Delete(keyFile);
+        }
+    }
+
+    [TestCase("dsa_pem_key", "Key 'DSA PRIVATE KEY' is not supported.")]
+    [TestCase("dsa_openssh_key", "OpenSSH key type 'ssh-dss' is not supported.")]
+    public void WriteFile_TestDsaPrivateKeyFailsWithClearMessage(string keyFile, string expectedMessage)
+    {
+        _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
+        _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
+        _connection.Port = 1;
+
+        var ex = Assert.Throws<ArgumentException>(() => SFTP.WriteFile(_input, _connection, new Options()));
+        StringAssert.StartsWith("Error when initializing connection info:", ex.Message);
+        StringAssert.Contains(expectedMessage, ex.Message);
+    }
+
     [TestCase("rsa_openssh_key")]
     [TestCase("ecdsa_nistp256_key")]
     public void BuildConnectionInfo_WrongPassphraseThrows(string keyFile)

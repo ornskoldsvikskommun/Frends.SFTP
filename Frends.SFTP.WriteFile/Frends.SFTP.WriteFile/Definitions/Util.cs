@@ -182,7 +182,7 @@ internal static class Util
                 break;
             case HostKeyAlgorithms.DSS:
                 // SSH.NET dropped DSA support in 2025.0.0, so ssh-dss can no longer be negotiated.
-                throw new ArgumentException("Host key algorithm DSS (ssh-dss) is no longer supported. Use Any or another host key algorithm.");
+                throw new NotSupportedException("Host key algorithm DSS (ssh-dss) is no longer supported. Use Any or another host key algorithm.");
             case HostKeyAlgorithms.nistp256:
                 client.ConnectionInfo.HostKeyAlgorithms.Add("ecdsa-sha2-nistp256", (data) =>
                 {

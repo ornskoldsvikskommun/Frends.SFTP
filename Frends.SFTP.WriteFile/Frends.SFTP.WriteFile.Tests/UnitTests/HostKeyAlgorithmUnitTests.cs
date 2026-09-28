@@ -41,7 +41,7 @@ public class HostKeyAlgorithmUnitTests
     {
         using var client = CreateClient();
 
-        var ex = Assert.Throws<ArgumentException>(() => Util.ForceHostKeyAlgorithm(client, HostKeyAlgorithms.DSS));
+        var ex = Assert.Throws<NotSupportedException>(() => Util.ForceHostKeyAlgorithm(client, HostKeyAlgorithms.DSS));
         StringAssert.Contains("DSS (ssh-dss) is no longer supported", ex.Message);
     }
 
@@ -53,7 +53,7 @@ public class HostKeyAlgorithmUnitTests
         connection.HostKeyAlgorithm = HostKeyAlgorithms.DSS;
         var input = new Input { Path = "/upload/test.txt", Content = "test", FileEncoding = FileEncoding.UTF8, WriteBehaviour = WriteOperation.Error };
 
-        var ex = Assert.Throws<ArgumentException>(() => SFTP.WriteFile(input, connection, new Options()));
+        var ex = Assert.Throws<NotSupportedException>(() => SFTP.WriteFile(input, connection, new Options()));
         StringAssert.Contains("DSS (ssh-dss) is no longer supported", ex.Message);
     }
 

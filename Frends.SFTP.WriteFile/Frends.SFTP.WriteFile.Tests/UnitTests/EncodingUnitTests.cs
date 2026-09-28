@@ -35,11 +35,28 @@ public class EncodingUnitTests
         Assert.AreEqual(Encoding.Default, Util.GetEncoding(FileEncoding.ANSI, false));
     }
 
+    [TestCase("windows-1252", 1252)]
     [TestCase("iso-8859-1", 28591)]
     [TestCase("windows-1257", 1257)]
     public void GetEncoding_Other(string name, int codePage)
     {
         Assert.AreEqual(codePage, Util.GetEncoding(FileEncoding.Other, false, name).CodePage);
+    }
+
+    [Test]
+    public void GetEncoding_OtherWindows1252EncodesSwedishCharacters()
+    {
+        var encoding = Util.GetEncoding(FileEncoding.Other, false, "windows-1252");
+        CollectionAssert.AreEqual(new byte[] { 0xE5, 0xE4, 0xF6, 0xC5, 0xC4, 0xD6 }, encoding.GetBytes("åäöÅÄÖ"));
+        Assert.AreEqual(0, encoding.GetPreamble().Length);
+    }
+
+    [Test]
+    public void GetEncoding_Utf8WithoutBomWritesNoPreamble()
+    {
+        var encoding = Util.GetEncoding(FileEncoding.UTF8, false);
+        CollectionAssert.AreEqual(new byte[] { 0x3C, 0xC3, 0xA5 }, encoding.GetBytes("<å"));
+        CollectionAssert.IsEmpty(encoding.GetPreamble());
     }
 
     [Test]

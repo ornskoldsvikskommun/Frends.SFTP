@@ -109,6 +109,15 @@ internal static class Helpers
         return content;
     }
 
+    internal static byte[] GetDestinationFileBytes(string path)
+    {
+        using var client = new SftpClient(_dockerAddress, 2222, _dockerUsername, _dockerPassword);
+        client.Connect();
+        var bytes = client.ReadAllBytes(path);
+        client.Disconnect();
+        return bytes;
+    }
+
     internal static long GetDestinationFileSize(string path)
     {
         using var client = new SftpClient(_dockerAddress, 2222, _dockerUsername, _dockerPassword);
