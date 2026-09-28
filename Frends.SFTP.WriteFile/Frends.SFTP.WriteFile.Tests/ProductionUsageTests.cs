@@ -42,6 +42,9 @@ public class ProductionUsageTests : WriteFileTestBase
 
     [TestCase("rsa_pem_key", null)]
     [TestCase("rsa_pem_key", "")]
+    [TestCase("rsa_pem_key_encrypted", "passphrase")]
+    [TestCase("rsa_pkcs8_key", null)]
+    [TestCase("rsa_putty_v3_key.ppk", null)]
     [TestCase("rsa_openssh_key", "passphrase")]
     [TestCase("ed25519_key", null)]
     [TestCase("ecdsa_nistp256_key", "passphrase")]

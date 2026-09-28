@@ -1,18 +1,21 @@
 # Changelog
 
-## [Unreleased]
+## [3.6.0] - 2026-09-28
+### Changed
+- `HostKeyAlgorithm` `DSS` is no longer supported, because SSH.NET dropped DSA. Selecting it now throws a `NotSupportedException`.
+- A server fingerprint mismatch now throws `SshConnectionException` with the message "Host key could not be verified." instead of "Key exchange negotiation failed.".
+
+### Updated
+- Updated SSH.NET to 2026.0.0 (clears Dependabot alerts GHSA-mggc-4xg6-vcxf / GHSA-q939-rpr3-3284; the vulnerable ScpClient code is not used by this task).
+- Added an explicit Microsoft.Bcl.AsyncInterfaces dependency, which SSH.NET needs at runtime on net6.0.
+
+## [3.5.5] - 2025-12-17
 ### Added
 - Added `VerifyWrite` option to allow skipping post-write verification (useful when the SFTP user does not have read permissions).
 - Added `Result.Verified` property to indicate whether verification was performed.
 
 ### Changed
 - [Breaking] Renamed `Result.Path` to `Result.RemotePath` for clarity. Update existing code to use `result.RemotePath` instead of `result.Path`.
-- [Breaking] `HostKeyAlgorithm` `DSS` is no longer supported, because SSH.NET dropped DSA. Selecting it now throws a `NotSupportedException`.
-- A server fingerprint mismatch now throws `SshConnectionException` with the message "Host key could not be verified." instead of "Key exchange negotiation failed.".
-
-### Updated
-- Updated SSH.NET to version 2026.0.0 to fix security advisories GHSA-mggc-4xg6-vcxf and GHSA-q939-rpr3-3284.
-- Added an explicit Microsoft.Bcl.AsyncInterfaces dependency, which SSH.NET needs at runtime on net6.0.
 
 ## [2.5.0] - 2025-10-15
 ### Added

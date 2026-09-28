@@ -2,8 +2,11 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography;
 using NUnit.Framework;
+using Org.BouncyCastle.Crypto;
 using Renci.SshNet;
+using Renci.SshNet.Common;
 using Frends.SFTP.WriteFile.Definitions;
 using Frends.SFTP.WriteFile.Enums;
 
@@ -76,20 +79,42 @@ public class ConnectionInfoBuilderUnitTests
         Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[1]);
     }
 
-    [TestCase("ed25519_key", null)]
-    [TestCase("ed25519_key", "")]
-    [TestCase("ecdsa_nistp256_key", "passphrase")]
-    [TestCase("rsa_openssh_key", "passphrase")]
-    public void BuildConnectionInfo_PrivateKeyString(string keyFile, string passphrase)
+    // Every key format SSH.NET 2026 can load, all derived from synthetic keys in TestData.
+    // The rsa_pem_key variants (PKCS#1, PKCS#8, PuTTY) are the same key, so they share rsa_pem_key.pub.
+    [TestCase("rsa_pem_key", null, "rsa_pem_key.pub")]
+    [TestCase("rsa_pem_key", "", "rsa_pem_key.pub")]
+    [TestCase("rsa_pem_key_encrypted", "passphrase", "rsa_pem_key.pub")]
+    [TestCase("rsa_pkcs8_key", null, "rsa_pem_key.pub")]
+    [TestCase("rsa_pkcs8_key", "", "rsa_pem_key.pub")]
+    [TestCase("rsa_pkcs8_key_encrypted", "passphrase", "rsa_pem_key.pub")]
+    [TestCase("rsa_putty_v2_key.ppk", null, "rsa_pem_key.pub")]
+    [TestCase("rsa_putty_v3_key.ppk", null, "rsa_pem_key.pub")]
+    [TestCase("rsa_putty_v3_key.ppk", "", "rsa_pem_key.pub")]
+    [TestCase("rsa_putty_v3_key_encrypted.ppk", "passphrase", "rsa_pem_key.pub")]
+    [TestCase("rsa_openssh_key", "passphrase", "rsa_openssh_key.pub")]
+    [TestCase("ecdsa_nistp256_key", "passphrase", "ecdsa_nistp256_key.pub")]
+    [TestCase("ed25519_key", null, "ed25519_key.pub")]
+    [TestCase("ed25519_key", "", "ed25519_key.pub")]
+    public void BuildConnectionInfo_PrivateKeyFormatsLoadAsFileAndString(string keyFile, string passphrase, string publicKeyFile)
     {
-        _connection.Authentication = AuthenticationType.UsernamePrivateKeyString;
-        _connection.PrivateKeyString = File.ReadAllText(Helpers.GetTestDataPath(keyFile));
+        var expectedPublicKey = Helpers.ReadPublicKeyBlob(publicKeyFile);
+        _connection.Password = null;
         _connection.PrivateKeyPassphrase = passphrase;
 
-        var info = Build();
+        _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
+        _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
+        AssertSinglePrivateKey(Build(), expectedPublicKey);
 
-        Assert.AreEqual(1, info.AuthenticationMethods.Count);
-        Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[0]);
+        _connection.Authentication = AuthenticationType.UsernamePrivateKeyString;
+        _connection.PrivateKeyString = File.ReadAllText(Helpers.GetTestDataPath(keyFile));
+        AssertSinglePrivateKey(Build(), expectedPublicKey);
+    }
+
+    private static void AssertSinglePrivateKey(ConnectionInfo info, byte[] expectedPublicKey)
+    {
+        var method = (PrivateKeyAuthenticationMethod)info.AuthenticationMethods.Single();
+        var key = method.KeyFiles.Single();
+        Assert.IsTrue(key.HostKeyAlgorithms.Any(a => a.Data.SequenceEqual(expectedPublicKey)), "Loaded key does not match the expected public key.");
     }
 
     [Test]
@@ -103,25 +128,6 @@ public class ConnectionInfoBuilderUnitTests
 
         Assert.AreEqual(2, info.AuthenticationMethods.Count);
         Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[1]);
-    }
-
-    [TestCase("rsa_pem_key", null)]
-    [TestCase("rsa_pem_key", "")]
-    [TestCase("ed25519_key", null)]
-    [TestCase("ed25519_key", "")]
-    [TestCase("rsa_openssh_key", "passphrase")]
-    [TestCase("ecdsa_nistp256_key", "passphrase")]
-    public void BuildConnectionInfo_PrivateKeyFileOnly(string keyFile, string passphrase)
-    {
-        _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
-        _connection.Password = null;
-        _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
-        _connection.PrivateKeyPassphrase = passphrase;
-
-        var info = Build();
-
-        Assert.AreEqual(1, info.AuthenticationMethods.Count);
-        Assert.IsInstanceOf<PrivateKeyAuthenticationMethod>(info.AuthenticationMethods[0]);
     }
 
     [TestCase(null)]
@@ -151,26 +157,51 @@ public class ConnectionInfoBuilderUnitTests
 
     [TestCase("dsa_pem_key", "Key 'DSA PRIVATE KEY' is not supported.")]
     [TestCase("dsa_openssh_key", "OpenSSH key type 'ssh-dss' is not supported.")]
-    public void WriteFile_TestDsaPrivateKeyFailsWithClearMessage(string keyFile, string expectedMessage)
+    public void WriteFile_TestDsaPrivateKeyFailsBeforeConnectingWithClearMessage(string keyFile, string expectedMessage)
     {
+        const string passphrase = "SyntheticSecret-4711";
+        var keyLines = File.ReadAllLines(Helpers.GetTestDataPath(keyFile));
         _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
         _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
+        _connection.PrivateKeyPassphrase = passphrase;
+        // Nothing listens on port 1, so any connection attempt would surface as a SocketException instead.
         _connection.Port = 1;
 
         var ex = Assert.Throws<ArgumentException>(() => SFTP.WriteFile(_input, _connection, new Options()));
         StringAssert.StartsWith("Error when initializing connection info:", ex.Message);
         StringAssert.Contains(expectedMessage, ex.Message);
+        StringAssert.DoesNotContain(passphrase, ex.Message);
+        Assert.IsFalse(keyLines.Skip(1).Take(keyLines.Length - 2).Any(l => ex.Message.Contains(l)), "Exception message contains key material.");
     }
 
-    [TestCase("rsa_openssh_key")]
-    [TestCase("ecdsa_nistp256_key")]
-    public void BuildConnectionInfo_WrongPassphraseThrows(string keyFile)
+    [TestCase("rsa_pem_key_encrypted", null)]
+    [TestCase("rsa_pem_key_encrypted", "")]
+    [TestCase("rsa_openssh_key", null)]
+    [TestCase("rsa_putty_v3_key_encrypted.ppk", "")]
+    public void BuildConnectionInfo_EncryptedKeyWithoutPassphraseThrows(string keyFile, string passphrase)
+    {
+        _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
+        _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
+        _connection.PrivateKeyPassphrase = passphrase;
+
+        var ex = Assert.Throws<SshPassPhraseNullOrEmptyException>(() => Build());
+        Assert.AreEqual("Private key is encrypted but passphrase is empty.", ex.Message);
+    }
+
+    // SSH.NET reports a wrong passphrase differently per key format.
+    [TestCase("rsa_openssh_key", typeof(SshException))]
+    [TestCase("ecdsa_nistp256_key", typeof(SshException))]
+    [TestCase("rsa_putty_v3_key_encrypted.ppk", typeof(SshException))]
+    [TestCase("rsa_pem_key_encrypted", typeof(CryptographicException))]
+    [TestCase("rsa_pkcs8_key_encrypted", typeof(InvalidCipherTextException))]
+    public void BuildConnectionInfo_WrongPassphraseThrows(string keyFile, Type expectedException)
     {
         _connection.Authentication = AuthenticationType.UsernamePrivateKeyFile;
         _connection.PrivateKeyFile = Helpers.GetTestDataPath(keyFile);
         _connection.PrivateKeyPassphrase = "wrong";
 
-        Assert.Catch<Exception>(() => Build());
+        var ex = Assert.Throws(expectedException, () => Build());
+        StringAssert.DoesNotContain("wrong", ex.Message);
     }
 
     [Test]
