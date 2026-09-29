@@ -10,7 +10,7 @@ UseDNS no
 UsePAM yes
 #ChallengeResponseAuthentication yes
 PasswordAuthentication yes
-AuthenticationMethods password keyboard-interactive
+AuthenticationMethods password keyboard-interactive publickey
 
 # Limited access
 PermitRootLogin no
@@ -19,7 +19,7 @@ AllowTcpForwarding no
 
 # Force sftp and chroot jail
 Subsystem sftp internal-sftp
-ForceCommand internal-sftp
+ForceCommand internal-sftp -d /upload
 ChrootDirectory %h
 
 # Enable this for more logs

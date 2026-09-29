@@ -80,7 +80,7 @@ public class ErrorTests : WriteFileTestBase
         _connection.ServerFingerPrint = fingerprint;
 
         var ex = Assert.Throws<SshConnectionException>(() => SFTP.WriteFile(_input, _connection, _options));
-        Assert.AreEqual("Key exchange negotiation failed.", ex.Message);
+        Assert.AreEqual("Host key could not be verified.", ex.Message);
     }
 }
 

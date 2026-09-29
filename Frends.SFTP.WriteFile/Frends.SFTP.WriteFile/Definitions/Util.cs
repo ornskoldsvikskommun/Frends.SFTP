@@ -90,62 +90,72 @@ internal static class Util
     internal static string CheckServerFingerprint(SftpClient client, string expectedServerFingerprint)
     {
         var userResultMessage = "";
-        var MD5serverFingerprint = string.Empty;
-        var SHAServerFingerprint = string.Empty;
 
         client.HostKeyReceived += delegate (object sender, HostKeyEventArgs e)
         {
-            MD5serverFingerprint = e.FingerPrintMD5;
-            SHAServerFingerprint = e.FingerPrintSHA256;
+            userResultMessage = VerifyServerFingerprint(e, expectedServerFingerprint);
+        };
 
-            if (!string.IsNullOrEmpty(expectedServerFingerprint))
+        return userResultMessage;
+    }
+
+    /// <summary>
+    /// Sets <see cref="HostKeyEventArgs.CanTrust"/> by comparing the received host key against the expected fingerprint.
+    /// Returns an error message when the fingerprint does not match, otherwise an empty string.
+    /// </summary>
+    internal static string VerifyServerFingerprint(HostKeyEventArgs e, string expectedServerFingerprint)
+    {
+        var userResultMessage = "";
+        var MD5serverFingerprint = e.FingerPrintMD5;
+        var SHAServerFingerprint = e.FingerPrintSHA256;
+
+        if (!string.IsNullOrEmpty(expectedServerFingerprint))
+        {
+            if (IsMD5(expectedServerFingerprint.Replace(":", "").Replace("-", "")))
             {
-                if (IsMD5(expectedServerFingerprint.Replace(":", "").Replace("-", "")))
+                if (!expectedServerFingerprint.Contains(':'))
                 {
-                    if (!expectedServerFingerprint.Contains(':'))
-                    {
-                        e.CanTrust = expectedServerFingerprint.ToLower() == MD5serverFingerprint.Replace(":", "").ToLower();
-                        if (!e.CanTrust)
-                            userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
-                                    $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{MD5serverFingerprint}'.";
-                    }
-                    else
-                    {
-                        e.CanTrust = e.FingerPrint.SequenceEqual(ConvertFingerprintToByteArray(expectedServerFingerprint));
-                        if (!e.CanTrust)
-                            userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
-                                    $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{MD5serverFingerprint}'.";
-                    }
-
-                }
-                else if (IsSha256(expectedServerFingerprint))
-                {
-                    if (TryConvertHexStringToHex(expectedServerFingerprint))
-                    {
-                        using (var mySHA256 = SHA256.Create())
-                        {
-                            SHAServerFingerprint = ToHex(mySHA256.ComputeHash(e.HostKey));
-                        }
-                        e.CanTrust = (SHAServerFingerprint == expectedServerFingerprint);
-                        if (!e.CanTrust)
-                            userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
-                                                $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{SHAServerFingerprint}'.";
-                    }
-                    else
-                    {
-                        e.CanTrust = (SHAServerFingerprint == expectedServerFingerprint || SHAServerFingerprint.Replace("=", "") == expectedServerFingerprint);
-                        if (!e.CanTrust)
-                            userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
-                                                $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{SHAServerFingerprint}'.";
-                    }
+                    e.CanTrust = expectedServerFingerprint.ToLower() == MD5serverFingerprint.Replace(":", "").ToLower();
+                    if (!e.CanTrust)
+                        userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
+                                $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{MD5serverFingerprint}'.";
                 }
                 else
                 {
-                    userResultMessage = "Expected server fingerprint was given in unsupported format.";
-                    e.CanTrust = false;
+                    e.CanTrust = e.FingerPrint.SequenceEqual(ConvertFingerprintToByteArray(expectedServerFingerprint));
+                    if (!e.CanTrust)
+                        userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
+                                $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{MD5serverFingerprint}'.";
+                }
+
+            }
+            else if (IsSha256(expectedServerFingerprint))
+            {
+                if (TryConvertHexStringToHex(expectedServerFingerprint))
+                {
+                    using (var mySHA256 = SHA256.Create())
+                    {
+                        SHAServerFingerprint = ToHex(mySHA256.ComputeHash(e.HostKey));
+                    }
+                    e.CanTrust = (SHAServerFingerprint == expectedServerFingerprint);
+                    if (!e.CanTrust)
+                        userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
+                                            $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{SHAServerFingerprint}'.";
+                }
+                else
+                {
+                    e.CanTrust = (SHAServerFingerprint == expectedServerFingerprint || SHAServerFingerprint.Replace("=", "") == expectedServerFingerprint);
+                    if (!e.CanTrust)
+                        userResultMessage = $"Can't trust SFTP server. The server fingerprint does not match. " +
+                                            $"Expected fingerprint: '{expectedServerFingerprint}', but was: '{SHAServerFingerprint}'.";
                 }
             }
-        };
+            else
+            {
+                userResultMessage = "Expected server fingerprint was given in unsupported format.";
+                e.CanTrust = false;
+            }
+        }
 
         return userResultMessage;
     }
@@ -171,12 +181,8 @@ internal static class Util
                 });
                 break;
             case HostKeyAlgorithms.DSS:
-                client.ConnectionInfo.HostKeyAlgorithms.Add("ssh-dss", (data) =>
-                {
-                    var sshKeyData = new SshKeyData(data);
-                    return new KeyHostAlgorithm("ssh-dss", new DsaKey(sshKeyData));
-                });
-                break;
+                // SSH.NET dropped DSA support in 2025.0.0, so ssh-dss can no longer be negotiated.
+                throw new NotSupportedException("Host key algorithm DSS (ssh-dss) is no longer supported. Use Any or another host key algorithm.");
             case HostKeyAlgorithms.nistp256:
                 client.ConnectionInfo.HostKeyAlgorithms.Add("ecdsa-sha2-nistp256", (data) =>
                 {

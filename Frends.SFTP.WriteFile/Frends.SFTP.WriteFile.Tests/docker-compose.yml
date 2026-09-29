@@ -10,6 +10,10 @@ services:
    - "2222:22"
   volumes:
    - ./Volumes/ssh_host_rsa_key.pub:/home/foo/.ssh/keys/ssh_host_rsa_key.pub:ro
+   - ./TestData/rsa_pem_key.pub:/home/foo/.ssh/keys/rsa_pem_key.pub:ro
+   - ./TestData/rsa_openssh_key.pub:/home/foo/.ssh/keys/rsa_openssh_key.pub:ro
+   - ./TestData/ed25519_key.pub:/home/foo/.ssh/keys/ed25519_key.pub:ro
+   - ./TestData/ecdsa_nistp256_key.pub:/home/foo/.ssh/keys/ecdsa_nistp256_key.pub:ro
    - ./Volumes/share:/home/foo/share
   command: 
    - "foo:pass:::upload"
