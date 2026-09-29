@@ -1,0 +1,7 @@
+version: 2
+
+secret:
+  ignored_paths:
+    # Synthetic SSH keys used only by the task test suites against the local
+    # Docker SFTP server. Never put real keys in these folders.
+    - '**/*.Tests/TestData/**'
