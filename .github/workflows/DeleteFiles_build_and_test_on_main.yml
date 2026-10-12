@@ -8,6 +8,9 @@ on:
       - 'Frends.SFTP.DeleteFiles/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     uses: FrendsPlatform/FrendsTasks/.github/workflows/linux_build_main.yml@main
