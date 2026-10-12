@@ -1,0 +1,179 @@
+# Fork-local build/test workflow for the per-task *_build_and_test_on_push.yml workflows.
+# Derived from FrendsPlatform/FrendsTasks/.github/workflows/linux_build_test.yml
+# (afce7af99794d08784ca8d504243683b2b1bbfd4) with the coverage-badge upload and the
+# test-feed publish removed: this fork has no access to Frends' badge service or
+# NuGet test feed, and push builds here should never publish packages.
+name: fork_build_test.yml
+
+on:
+  workflow_call:
+    inputs:
+      workdir:
+        required: false
+        type: string
+        default: '.'
+      prebuild_command:
+        required: false
+        type: string
+      dotnet_version:
+        required: false
+        type: string
+        default: '6.0.x'
+        description: 'Version of .NET SDK to use, e.g. 6.0.x, 8.0.x'
+      strict_analyzers:
+        required: false
+        type: boolean
+        default: false
+
+env:
+  ROSLYNATOR_VERSION: 0.10.1
+
+jobs:
+  code_quality:
+    name: Check Code Quality
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Super-Linter
+        uses: super-linter/super-linter@v7.4.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATE_CSHARP: true
+          IGNORE_GITIGNORED_FILES: true
+          FILTER_REGEX_INCLUDE: "${{ inputs.workdir }}/.*"
+
+  build:
+    name: Build on ubuntu-22.04
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.workdir }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      # An alias is needed so that docker-compose works with the dash in between.
+      - name: Create alias for docker-compose
+        run: |
+          sudo touch /usr/bin/docker-compose
+          sudo echo 'docker compose --compatibility "$@"' | sudo tee /usr/bin/docker-compose
+          sudo chmod +x /usr/bin/docker-compose
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4.3.1
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - name: Enable global .NET tools
+        run: |
+          echo ~/.dotnet/tools >> $GITHUB_PATH
+
+      - name: Install Roslynator
+        run: |
+          dotnet tool install --global Roslynator.DotNet.Cli --version ${{ env.ROSLYNATOR_VERSION }}
+
+      - name: Download FrendsTaskAnalyzers
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir .analyzers
+          latest=$(gh release list \
+            --repo 'FrendsPlatform/FrendsTasks' \
+            --json tagName \
+            --exclude-drafts \
+            --exclude-pre-releases \
+            --jq '[.[] | select(.tagName | startswith("analyzers-")) | .tagName] | first')
+          gh release download "$latest" \
+            --repo 'FrendsPlatform/FrendsTasks' \
+            --dir '.analyzers' \
+            --pattern '*.nupkg'
+          unzip -o -j -d '.analyzers' '.analyzers/*.nupkg' '*.dll'
+
+      - if: ${{ inputs.prebuild_command != '' }}
+        name: Run prebuild command
+        run: ${{ inputs.prebuild_command }}
+
+      - name: Build
+        run: dotnet build
+
+      - name: Write .editorconfig
+        run: |
+          file=$(find . -name 'FrendsTaskMetadata.json' 2>/dev/null | head -n 1)
+          methods=$(jq -r '[.Tasks[].TaskMethod] | join(";")' "$file")
+          cat <<EOF >> .editorconfig
+          [*.cs]
+          frends_task_analyzers.task_methods = $methods
+          EOF
+
+      - name: Format
+        run: |
+          dotnet format \
+            --verify-no-changes \
+            --verbosity detailed
+        continue-on-error: ${{ !inputs.strict_analyzers }}
+
+      - name: Lint
+        run: |
+          while IFS= read -r proj; do
+            roslynator analyze \
+              --analyzer-assemblies '.analyzers' \
+              --verbosity detailed \
+              "$proj"
+          done < <(find . -name '*.csproj' -not -name '*.Tests.csproj')
+        continue-on-error: ${{ !inputs.strict_analyzers }}
+
+      - name: Cleanup after analyzers
+        run: |
+          if git ls-files --error-unmatch .editorconfig >/dev/null 2>&1; then
+            git restore .editorconfig
+          else
+            rm -f .editorconfig
+          fi
+          rm -rf .analyzers
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $settingsFile = ".runtestsettings"
+          if (Test-Path $settingsFile) {
+            Write-Host "Using $settingsFile found in workspace."
+            dotnet test --settings $settingsFile --collect:"XPlat Code Coverage"
+          } else {
+            Write-Host "No $settingsFile file found. Running with default settings."
+            dotnet test --collect:"XPlat Code Coverage"
+          }
+
+      - name: Check code coverage
+        run: |
+          file=$(find . -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)
+          if [ -z "$file" ]; then
+            echo "coverage.cobertura.xml not found"
+            exit 1
+          fi
+          lineRate=$(grep -oE 'line-rate="[^"]+"' "$file" | head -n 1 | cut -d'"' -f2)
+          if [ -z "$lineRate" ]; then
+            echo "Could not read line-rate from $file"
+            exit 1
+          fi
+          lineRatePct=$(awk "BEGIN {printf \"%.0f\", $lineRate * 100}")
+          if [ $lineRatePct -lt 80 ]; then
+            echo "## Test coverage failed :x:" >> $GITHUB_STEP_SUMMARY
+            echo "**Line coverage:** $lineRatePct% | **Required:** 80%" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "## Test coverage passed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+            echo "**Line coverage:** $lineRatePct%" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Packing verifies the package builds; the artifact is not published anywhere.
+      - name: Pack
+        run: dotnet pack --configuration Release --include-source
