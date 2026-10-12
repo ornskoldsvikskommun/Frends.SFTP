@@ -3,6 +3,9 @@ name: Frends.SFTP.ListFiles Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     uses: FrendsPlatform/FrendsTasks/.github/workflows/release.yml@main

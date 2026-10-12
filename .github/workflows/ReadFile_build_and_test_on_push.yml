@@ -9,6 +9,10 @@ on:
   workflow_dispatch:
   
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   build:
     uses: FrendsPlatform/FrendsTasks/.github/workflows/linux_build_test.yml@main
