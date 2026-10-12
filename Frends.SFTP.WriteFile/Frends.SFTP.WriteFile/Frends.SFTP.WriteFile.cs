@@ -113,7 +113,7 @@ public class SFTP
                 default:
                     throw new ArgumentException($"Unknown WriteBehaviour type: '{input.WriteBehaviour}'.");
             }
-            
+
             if (options.VerifyWrite)
             {
                 return new Result(client.Get(input.Path));
@@ -130,7 +130,7 @@ public class SFTP
                 var bytes = encoding.GetByteCount(payload);
                 if (input.WriteBehaviour != WriteOperation.Append && input.EnableBom)
                     bytes += encoding.GetPreamble().Length;
-                
+
                 return new Result(input.Path, bytes);
             }
         }
